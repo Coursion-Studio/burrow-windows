@@ -49,6 +49,7 @@ namespace DiscordUnblock
             BuildMethodRows();
             BuildProbeRows();
             SetupTray();
+            VersionText.Text = "v" + Updater.CurrentText;
         }
 
         /// <summary>Called by App. In tray mode the window stays hidden until the tray icon is clicked.</summary>
@@ -117,6 +118,7 @@ namespace DiscordUnblock
             menu.Items.Add(new WF.ToolStripSeparator());
             menu.Items.Add(_trayToggle);
             menu.Items.Add(new WF.ToolStripMenuItem("Open DiscordUnblock", null, (_, __) => ShowFromTray()) { Font = new SD.Font("Segoe UI", 9.5f, SD.FontStyle.Bold) });
+            menu.Items.Add(new WF.ToolStripMenuItem("Check for updates…", null, async (_, __) => { ShowFromTray(); await CheckForUpdatesAsync(manual: true); }));
             menu.Items.Add(new WF.ToolStripSeparator());
             menu.Items.Add(new WF.ToolStripMenuItem("Quit", null, async (_, __) => await ExitAppAsync()));
             foreach (WF.ToolStripItem i in menu.Items) { i.ForeColor = SD.Color.FromArgb(0xE9, 0xEB, 0xF1); i.Padding = new WF.Padding(4, 3, 4, 3); }
@@ -139,6 +141,7 @@ namespace DiscordUnblock
             DiscordOnlySwitch.IsChecked = _s.DiscordOnly;
             DnsSwitch.IsChecked = _s.FixDns;
             SelectMethodRow(_s.Method);
+            InitUpdates();
             _loading = false;
 
             AppendLog(_engine.IsInstalled

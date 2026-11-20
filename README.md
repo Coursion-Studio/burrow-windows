@@ -45,7 +45,8 @@
 </p>
 
 Setup adds DiscordUnblock to the **Start menu**, can **start it with Windows**, and registers it under
-**Settings → Apps → Installed apps**. Running a newer `DiscordUnblockSetup` **updates it in place** and keeps your settings.
+**Settings → Apps → Installed apps**. After that, DiscordUnblock **updates itself**: it checks once a day, shows what's
+new, and installs with one click, keeping your settings.
 
 > **"Windows protected your PC"?** This SmartScreen warning appears because the installer isn't code-signed yet.
 > Click **More info → Run anyway**. Each release includes a `.sha256` file so you can verify the download.
@@ -70,13 +71,17 @@ Microsoft for you.
 | 🌐 **DNS fix built in** | Many providers also return fake addresses for Discord. DiscordUnblock asks a different DNS server on a non-standard port, without changing your Windows settings. |
 | 🛡️ **Lives in the tray** | Close the window and it keeps working. The shield icon turns green when Discord is unblocked. |
 | 🔁 **Start with Windows** | Opens quietly in the tray when you sign in and turns the bypass back on, with no admin prompt at login. |
-| 🔒 **No VPN, no account** | Your traffic isn't routed through anyone's server. No account, no analytics, no telemetry. |
+| 🔄 **Automatic updates** | Checks once a day, shows what's new, and installs with one click, then reopens with the bypass back on. Every update is signed by Coursion Studio and checked before it runs. |
+| 🔒 **No VPN, no account** | Your traffic isn't routed through anyone's server. No account, no analytics, no telemetry. The only calls the app makes itself are fetching GoodbyeDPI, the connection check and the daily update check. |
 
 ## 📸 Screenshots
 
 <p align="center">
   <img src="docs/shot-findbest.png" width="49%" alt="Find best method scoring each bypass method">
   <img src="docs/shot-off.png" width="49%" alt="DiscordUnblock turned off">
+</p>
+<p align="center">
+  <img src="docs/shot-update.png" width="80%" alt="An update is available, with what's new and one-click install">
 </p>
 <p align="center">
   <img src="docs/setup-progress.png" width="49%" alt="Setup installing DiscordUnblock">
@@ -114,6 +119,17 @@ network traffic. It's downloaded from its official release page, and the app onl
 
 The app is in `C:\Program Files\DiscordUnblock`. Its settings and the GoodbyeDPI files it downloads on first use are
 in `C:\ProgramData\DiscordUnblock`. Uninstalling removes both if you turn on **Also remove settings and downloads**.
+</details>
+
+<details>
+<summary><b>How do updates work? Can I turn them off?</b></summary>
+
+Once a day DiscordUnblock reads a small file from this repo's latest release. If there's a newer version, it shows
+what's new and lets you **Install update**, **Later**, or **Skip this version**. Before running anything it checks the
+download's SHA-256 and its digital signature; if either doesn't match, nothing is installed. Turn checks off under
+**Options → Automatic updates**, and use **Check now** (or the tray menu) whenever you like.
+
+Updating from 1.1.0? That version had no updater, so download 1.2.0 once from the releases page.
 </details>
 
 <details>

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -11,11 +11,13 @@
     <RootNamespace>DiscordUnblock</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.1.0</Version>
+    <Version>1.2.0</Version>
     <Product>DiscordUnblock</Product>
     <Description>Unblocks Discord using DPI circumvention (GoodbyeDPI), no VPN.</Description>
     <!-- Run on .NET 8 or any newer desktop runtime -->
     <RollForward>LatestMajor</RollForward>
+    <!-- Keep the file version a plain "x.y.z" (no "+<git commit>" suffix) -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

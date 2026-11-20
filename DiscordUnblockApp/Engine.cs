@@ -45,6 +45,12 @@ namespace DiscordUnblock
         public bool WasOn { get; set; }
         public bool TrayHintShown { get; set; }
 
+        // Updates
+        public bool AutoUpdate { get; set; } = true;
+        public long LastUpdateCheck { get; set; }          // UTC ticks
+        public string SkippedVersion { get; set; }
+        public string UpdateFeed { get; set; }             // blank = the public feed (override only for testing)
+
         static string FilePath => Path.Combine(Engine.Dir, "settings.json");
 
         public static Settings Load()

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0 — 2026-11-20
+- **Automatic updates.** DiscordUnblock checks for a new version once a day, shows what's new, and installs it with one click, then reopens with the bypass back on. Every update is signed by Coursion Studio and checked before it runs.
+- **Check for updates any time** from Options or the tray menu, or turn automatic checks off.
+- **Version number in the title bar**, so you can see which version you're on.
+
 ## 1.1.0 — 2026-11-20
 - **Discord connects reliably.** The new default bypass method got every connection to Discord through in testing, where the old one let about half fail.
 - **"Find best method" measures instead of guessing.** It makes 12 real connections with each method and keeps the one that works best on your network.

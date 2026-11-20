@@ -8,7 +8,8 @@ The code is licensed under the MIT licence (see LICENSE.md).
 The app runs entirely on your PC. No account, analytics or telemetry. It does not route your
 traffic through any server: it only changes how your PC's own connections to Discord are sent.
 The only network calls the app makes itself are downloading GoodbyeDPI from its official GitHub
-page and the connection check to Discord's servers.
+page, the connection check to Discord's servers, and a daily check for updates (which you can
+turn off).
 
 ## Third-party software
 

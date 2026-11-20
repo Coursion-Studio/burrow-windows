@@ -40,6 +40,20 @@ namespace DiscordUnblock
                 "Standard: 9/12 connections got through (75%).");
             await find.SaveAsync(Path.Combine(outDir, "shot-findbest.png"));
 
+            var upd = new MainWindow();
+            await upd.ShowOffscreenAsync();
+            upd.DemoCommon();
+            upd.SetState(UiState.On);
+            i = 0;
+            foreach (var ms in new[] { 131, 102, 124 }) SetProbe(upd._probes[i++], CGood, $"reachable · {ms} ms", CGood);
+            upd.DemoLog("Bypass is on.", "Update available: DiscordUnblock 1.3.0.");
+            var demo = new UpdateInfo { Version = new Version(1, 3, 0), Published = "2026-12-04" };
+            demo.Notes.Add("Faster start. The bypass is ready about a second sooner after you click the power button.");
+            demo.Notes.Add("Find best method now also tries combined methods for providers that block more aggressively.");
+            demo.Notes.Add("The connection check shows which Discord server answered.");
+            upd.ShowUpdate(demo);
+            await upd.SaveAsync(Path.Combine(outDir, "shot-update.png"));
+
             var off = new MainWindow();
             await off.ShowOffscreenAsync();
             off.DemoCommon();
@@ -63,6 +77,7 @@ namespace DiscordUnblock
             StartupSwitch.IsChecked = true;
             DiscordOnlySwitch.IsChecked = true;
             DnsSwitch.IsChecked = true;
+            AutoUpdateSwitch.IsChecked = true;   // the real default
             SelectMethodRow(1);
             _loading = false;
         }

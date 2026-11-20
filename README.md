@@ -8,13 +8,14 @@
   <img alt="Windows 10 / 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4?style=flat-square&logo=windows">
   <img alt="Installer size" src="https://img.shields.io/badge/installer-~470%20KB-14b8a6?style=flat-square">
   <img alt="No VPN" src="https://img.shields.io/badge/VPN-not%20needed-2ecc71?style=flat-square">
-  <a href="LICENSE.md"><img alt="Proprietary licence" src="https://img.shields.io/badge/licence-proprietary-3b47d6?style=flat-square"></a>
+  <a href="LICENSE.md"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-3b47d6?style=flat-square"></a>
+  <img alt="Open source" src="https://img.shields.io/badge/source-open-14b8a6?style=flat-square">
 </p>
 
 <p align="center">
   <b>Discord blocked by your internet provider? One click and it works again.</b><br>
   No VPN, no proxy, no slowdown. Only your connections to Discord are touched,<br>
-  and the rest of your internet stays exactly as it was.
+  and the rest of your internet stays exactly as it was. Free and open source.
 </p>
 
 <p align="center">
@@ -23,6 +24,7 @@
   &nbsp;·&nbsp; <a href="#-features">Features</a>
   &nbsp;·&nbsp; <a href="#-screenshots">Screenshots</a>
   &nbsp;·&nbsp; <a href="#-faq">FAQ</a>
+  &nbsp;·&nbsp; <a href="#%EF%B8%8F-build-from-source">Source</a>
 </p>
 
 ---
@@ -120,14 +122,38 @@ in `C:\ProgramData\DiscordUnblock`. Uninstalling removes both if you turn on **A
 Open DiscordUnblock and turn off **Options → Start with Windows**.
 </details>
 
+## 🛠️ Build from source
+
+DiscordUnblock is open source. This repo has the full source of the app:
+
+| Path | What's in it |
+|---|---|
+| [`DiscordUnblockApp/`](DiscordUnblockApp) | The app (WPF, .NET 8). [`Engine.cs`](DiscordUnblockApp/Engine.cs) downloads, starts and stops GoodbyeDPI and holds the bypass methods; [`MainWindow.xaml.cs`](DiscordUnblockApp/MainWindow.xaml.cs) is the window and tray icon. |
+| [`Shared/`](Shared) | [`IconArt.cs`](Shared/IconArt.cs) draws every icon in code; [`StartupTask.cs`](Shared/StartupTask.cs) is Start with Windows. |
+| [`legacy/`](legacy) | The original one-file PowerShell version. Double-click `DiscordUnblock.cmd` to use it without building anything. |
+
+To build it you need the [.NET 8 SDK](https://dotnet.microsoft.com/download):
+
+```powershell
+git clone https://github.com/Coursion-Studio/discordunblock-windows
+cd discordunblock-windows
+.\build.ps1          # -> dist\DiscordUnblock.exe
+```
+
+`dist\DiscordUnblock.exe` runs on its own: it asks for admin rights, downloads GoodbyeDPI on first use and keeps
+its settings in `C:\ProgramData\DiscordUnblock`. The installer in Releases is built separately and isn't part of this repo.
+
+Pull requests are welcome, especially new bypass methods that work for your provider (add them to `Methods.All` in
+`Engine.cs` and say which country and provider you tested on).
+
 ## 🐛 Issues & feedback
 
 Open an issue on this repo, or email [support@coursion.studio](mailto:support@coursion.studio).
-The source code lives in a private repo. This one hosts the releases and this page.
+If Discord stays blocked, say which country and internet provider you're on and what **Find best method** reported.
 
 ## 📄 Licence
 
-Proprietary. See [LICENSE.md](LICENSE.md). © 2026 Coursion Studio. All rights reserved.
+[MIT](LICENSE.md). © 2026 Coursion Studio.
 Questions: [support@coursion.studio](mailto:support@coursion.studio) · [coursion.studio](https://coursion.studio)
 
 DiscordUnblock downloads and runs [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) (Apache License 2.0), which

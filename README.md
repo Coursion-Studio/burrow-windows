@@ -153,7 +153,7 @@ If Discord stays blocked, say which country and internet provider you're on and 
 
 ## 📄 Licence
 
-[MIT](LICENSE.md). © 2026 Coursion Studio.
+[MIT](LICENSE.md). © 2026 Coursion Studio. Privacy, third-party and trademark notes are in [NOTICE.md](NOTICE.md).
 Questions: [support@coursion.studio](mailto:support@coursion.studio) · [coursion.studio](https://coursion.studio)
 
 DiscordUnblock downloads and runs [GoodbyeDPI](https://github.com/ValdikSS/GoodbyeDPI) (Apache License 2.0), which

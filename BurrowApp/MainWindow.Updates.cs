@@ -8,7 +8,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WF = System.Windows.Forms;
 
-namespace DiscordUnblock
+namespace Burrow
 {
     /// <summary>Over-the-air updates: the daily check, the update card, and installing.</summary>
     public partial class MainWindow
@@ -60,7 +60,7 @@ namespace DiscordUnblock
             if (_checking || _installing) return;
             _checking = true;
             CheckUpdatesButton.IsEnabled = false;
-            CheckUpdatesButton.Content = "Checking…";
+            CheckUpdatesButton.Content = Loc.T("upd.checking");
             try
             {
                 var u = await Updater.CheckAsync(FeedUrl);
@@ -68,28 +68,28 @@ namespace DiscordUnblock
                 _s.Save();
                 if (u == null)
                 {
-                    AppendLog($"Checked for updates: {Updater.CurrentText} is the newest version.");
-                    if (manual) ShowUpdateMessage("You're up to date", $"DiscordUnblock {Updater.CurrentText} is the newest version.");
+                    AppendLog(Loc.T("log.upd.none", Updater.CurrentText));
+                    if (manual) ShowUpdateMessage(Loc.T("upd.uptodate.title"), Loc.T("upd.uptodate.text", Updater.CurrentText));
                     return;
                 }
                 string v = Updater.Text(u.Version);
-                AppendLog($"Update available: DiscordUnblock {v}.");
+                AppendLog(Loc.T("log.upd.available", v));
                 if (!manual && (v == _s.SkippedVersion || v == _shownThisRun)) return;
                 _shownThisRun = v;
                 ShowUpdate(u);
                 if (!IsVisible)
-                    _tray.ShowBalloonTip(6000, $"DiscordUnblock {v} is available", "Click to see what's new and install it.", WF.ToolTipIcon.Info);
+                    _tray.ShowBalloonTip(6000, Loc.T("upd.title", v), Loc.T("balloon.upd.text"), WF.ToolTipIcon.Info);
             }
             catch (Exception ex)
             {
-                AppendLog("Update check failed: " + Updater.Friendly(ex));
-                if (manual) ShowUpdateMessage("Couldn't check for updates", Updater.Friendly(ex));
+                AppendLog(Loc.T("log.upd.failed", Updater.Friendly(ex)));
+                if (manual) ShowUpdateMessage(Loc.T("upd.failed.title"), Updater.Friendly(ex));
             }
             finally
             {
                 _checking = false;
                 CheckUpdatesButton.IsEnabled = true;
-                CheckUpdatesButton.Content = "Check now";
+                CheckUpdatesButton.Content = Loc.T("xaml.checkNow");
             }
         }
 
@@ -98,8 +98,8 @@ namespace DiscordUnblock
         void ShowUpdate(UpdateInfo u)
         {
             _pendingUpdate = u;
-            UpdTitle.Text = $"DiscordUnblock {Updater.Text(u.Version)} is available";
-            UpdSub.Text = $"You have {Updater.CurrentText}" + (string.IsNullOrEmpty(u.Published) ? "" : $" · released {u.Published}");
+            UpdTitle.Text = Loc.T("upd.title", Updater.Text(u.Version));
+            UpdSub.Text = Loc.T("upd.sub", Updater.CurrentText) + (string.IsNullOrEmpty(u.Published) ? "" : Loc.T("upd.released", u.Published));
             UpdNotes.Children.Clear();
             foreach (var n in u.Notes)
             {
@@ -116,7 +116,7 @@ namespace DiscordUnblock
             ResetProgress();
             UpdSkip.Visibility = Visibility.Visible;
             UpdInstall.Visibility = Visibility.Visible;
-            UpdLater.Content = "Later";
+            UpdLater.Content = Loc.T("upd.later");
             OpenUpdateCard();
         }
 
@@ -129,7 +129,7 @@ namespace DiscordUnblock
             ResetProgress();
             UpdSkip.Visibility = Visibility.Collapsed;
             UpdInstall.Visibility = Visibility.Collapsed;
-            UpdLater.Content = "OK";
+            UpdLater.Content = Loc.T("upd.ok");
             OpenUpdateCard();
         }
 
@@ -175,7 +175,7 @@ namespace DiscordUnblock
         {
             _s.AutoUpdate = AutoUpdateSwitch.IsChecked == true;
             _s.Save();
-            AppendLog(_s.AutoUpdate ? "Automatic updates on." : "Automatic updates off. Use \"Check now\" to look for updates.");
+            AppendLog(_s.AutoUpdate ? Loc.T("log.autoUpdate.on") : Loc.T("log.autoUpdate.off"));
         }
 
         void UpdLater_Click(object sender, RoutedEventArgs e) => CloseUpdateCard();
@@ -188,7 +188,7 @@ namespace DiscordUnblock
             {
                 _s.SkippedVersion = Updater.Text(_pendingUpdate.Version);
                 _s.Save();
-                AppendLog($"Skipping version {_s.SkippedVersion}. \"Check now\" still offers it.");
+                AppendLog(Loc.T("log.upd.skip", _s.SkippedVersion));
             }
             CloseUpdateCard();
         }
@@ -201,14 +201,14 @@ namespace DiscordUnblock
             UpdButtons.IsEnabled = false;
             UpdStatus.Visibility = Visibility.Visible;
             UpdTrack.Visibility = Visibility.Visible;
-            UpdStatus.Text = "Downloading…";
+            UpdStatus.Text = Loc.T("upd.downloading");
             try
             {
-                var progress = new Progress<int>(p => { UpdStatus.Text = $"Downloading… {p}%"; SetUpdateBar(p / 100.0 * 0.85); });
+                var progress = new Progress<int>(p => { UpdStatus.Text = Loc.T("upd.downloadingPct", p); SetUpdateBar(p / 100.0 * 0.85); });
                 string path = await Updater.DownloadAsync(u, progress);
-                UpdStatus.Text = "Verified. Installing… DiscordUnblock will reopen in a moment.";
+                UpdStatus.Text = Loc.T("upd.verified");
                 SetUpdateBar(1);
-                AppendLog($"Update {Updater.Text(u.Version)} downloaded and verified. Installing.");
+                AppendLog(Loc.T("log.upd.installing", Updater.Text(u.Version)));
                 await Task.Delay(700);
                 Updater.StartInstaller(path);
                 await ExitAppAsync();
@@ -221,7 +221,7 @@ namespace DiscordUnblock
                 UpdFill.BeginAnimation(WidthProperty, null);
                 UpdFill.Width = 0;
                 UpdButtons.IsEnabled = true;
-                AppendLog("Update failed: " + Updater.Friendly(ex));
+                AppendLog(Loc.T("log.upd.error", Updater.Friendly(ex)));
             }
         }
     }

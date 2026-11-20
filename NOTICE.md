@@ -1,6 +1,6 @@
-# DiscordUnblock for Windows — Notices
+# Burrow for Windows — Notices
 
-DiscordUnblock is published by Kuray Öğün, trading as Coursion Studio, Ankara, Türkiye.
+Burrow is published by Kuray Öğün, trading as Coursion Studio, Ankara, Türkiye.
 The code is licensed under the MIT licence (see LICENSE.md).
 
 ## Privacy
@@ -19,7 +19,7 @@ are covered by their own licences.
 
 ## Trademarks and your responsibility
 
-DiscordUnblock is not affiliated with or endorsed by Discord Inc. "Discord" is a trademark of
+Burrow is not affiliated with or endorsed by Discord Inc. "Discord" is a trademark of
 Discord Inc. The MIT licence covers the code; it doesn't grant any right to use the
 "Coursion Studio" name to promote modified versions. You are responsible for making sure that
 using the app is allowed where you live and on the network you use.

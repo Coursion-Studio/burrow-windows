@@ -1,4 +1,4 @@
-// Draws the DiscordUnblock icon (shield + power symbol).
+// Draws the Burrow icon (shield + power symbol).
 // Shared by the app (tray icons), the setup and the build script.
 // Kept C# 5 compatible so Windows PowerShell's Add-Type can compile it.
 using System;
@@ -7,7 +7,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 
-namespace DiscordUnblock
+namespace Burrow
 {
     public static class IconArt
     {

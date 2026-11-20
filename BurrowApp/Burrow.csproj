@@ -7,12 +7,12 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
-    <AssemblyName>DiscordUnblock</AssemblyName>
-    <RootNamespace>DiscordUnblock</RootNamespace>
+    <AssemblyName>Burrow</AssemblyName>
+    <RootNamespace>Burrow</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.2.0</Version>
-    <Product>DiscordUnblock</Product>
+    <Version>1.3.0</Version>
+    <Product>Burrow</Product>
     <Description>Unblocks Discord using DPI circumvention (GoodbyeDPI), no VPN.</Description>
     <!-- Run on .NET 8 or any newer desktop runtime -->
     <RollForward>LatestMajor</RollForward>

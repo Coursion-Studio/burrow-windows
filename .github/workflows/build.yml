@@ -1,0 +1,39 @@
+name: Build
+
+# Builds Burrow from this repo's source on every push and pull request,
+# so contributors know their change compiles. The built app is attached to the run.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build
+        shell: pwsh
+        run: ./build.ps1
+
+      - name: Check the app was built
+        shell: pwsh
+        run: |
+          $exe = Get-Item dist/Burrow.exe
+          "Built $($exe.Name): $([int]($exe.Length / 1KB)) KB, version $($exe.VersionInfo.ProductVersion)"
+          "SHA-256: $((Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant())"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Burrow-${{ github.sha }}
+          path: dist/Burrow.exe
+          if-no-files-found: error

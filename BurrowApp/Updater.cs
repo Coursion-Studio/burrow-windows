@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace DiscordUnblock
+namespace Burrow
 {
     public sealed class UpdateInfo
     {
@@ -19,13 +19,13 @@ namespace DiscordUnblock
     /// <summary>
     /// Over-the-air updates. The feed (update.json, attached to every release) says which version is newest
     /// and where its installer is. An installer is only run if its SHA-256 matches the feed AND it carries a
-    /// valid RSA signature from the DiscordUnblock update key (public half in UpdateKey.cs).
+    /// valid RSA signature from the Burrow update key (public half in UpdateKey.cs).
     /// Nothing installs without the user's OK.
     /// </summary>
     public static class Updater
     {
         /// <summary>Every release replaces update.json, so this URL always points at the newest one.</summary>
-        public const string DefaultFeed = "https://github.com/Coursion-Studio/discordunblock-windows/releases/latest/download/update.json";
+        public const string DefaultFeed = "https://github.com/Coursion-Studio/burrow-windows/releases/latest/download/update.json";
 
         public static Version Current => Norm(typeof(Updater).Assembly.GetName().Version);
         public static string CurrentText => Text(Current);
@@ -36,7 +36,7 @@ namespace DiscordUnblock
         static HttpClient Client()
         {
             var c = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-            c.DefaultRequestHeaders.UserAgent.ParseAdd("DiscordUnblock-Windows/" + CurrentText);
+            c.DefaultRequestHeaders.UserAgent.ParseAdd("Burrow-Windows/" + CurrentText);
             return c;
         }
 
@@ -53,13 +53,13 @@ namespace DiscordUnblock
             string S(string k) => r.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
             var info = new UpdateInfo
             {
-                Version = Norm(new Version(S("version") ?? throw new InvalidDataException("The update feed has no version."))),
+                Version = Norm(new Version(S("version") ?? throw new InvalidDataException(Loc.T("err.upd.feed")))),
                 Url = S("url"), Sha256 = S("sha256"), Signature = S("signature"), Published = S("published"),
             };
             if (r.TryGetProperty("notes", out var notes) && notes.ValueKind == JsonValueKind.Array)
                 foreach (var n in notes.EnumerateArray()) if (n.ValueKind == JsonValueKind.String) info.Notes.Add(n.GetString());
             if (info.Url == null || info.Sha256 == null || info.Signature == null)
-                throw new InvalidDataException("The update feed is incomplete.");
+                throw new InvalidDataException(Loc.T("err.upd.feed"));
             return info;
         }
 
@@ -73,9 +73,9 @@ namespace DiscordUnblock
         /// <summary>Downloads the installer to %TEMP% and verifies it. Returns its path, or throws if anything doesn't match.</summary>
         public static async Task<string> DownloadAsync(UpdateInfo u, IProgress<int> progress)
         {
-            string dir = Path.Combine(Path.GetTempPath(), "DiscordUnblock-update");
+            string dir = Path.Combine(Path.GetTempPath(), "Burrow-update");
             Directory.CreateDirectory(dir);
-            string path = Path.Combine(dir, "DiscordUnblockSetup-" + Text(u.Version) + ".exe");
+            string path = Path.Combine(dir, "BurrowSetup-" + Text(u.Version) + ".exe");
             if (File.Exists(path)) File.Delete(path);
 
             var uri = new Uri(u.Url);
@@ -110,16 +110,16 @@ namespace DiscordUnblock
         {
             string hash = Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
             if (!string.Equals(hash, u.Sha256.Trim(), StringComparison.OrdinalIgnoreCase))
-                throw new CryptographicException("The download is damaged (checksum mismatch). Nothing was installed.");
+                throw new CryptographicException(Loc.T("err.upd.checksum"));
 
             byte[] sig;
             try { sig = Convert.FromBase64String(u.Signature); }
-            catch (FormatException) { throw new CryptographicException("The update isn't signed correctly. Nothing was installed."); }
+            catch (FormatException) { throw new CryptographicException(Loc.T("err.upd.badsig")); }
 
             using var rsa = RSA.Create();
             rsa.FromXmlString(UpdateKey.PublicXml);
             if (!rsa.VerifyData(data, sig, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1))
-                throw new CryptographicException("The update isn't signed by Coursion Studio. Nothing was installed.");
+                throw new CryptographicException(Loc.T("err.upd.signature"));
         }
 
         /// <summary>
@@ -137,7 +137,7 @@ namespace DiscordUnblock
         {
             var inner = ex is AggregateException ? ex.GetBaseException() : ex;
             if (inner is HttpRequestException || inner is TaskCanceledException)
-                return "Couldn't reach the update server. Check your internet connection and try again.";
+                return Loc.T("err.upd.offline");
             return inner.Message;
         }
     }

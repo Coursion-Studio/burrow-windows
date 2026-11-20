@@ -1,14 +1,15 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Windows;
 
-namespace DiscordUnblock
+namespace Burrow
 {
     public partial class App : Application
     {
-        const string MutexName = "DiscordUnblock.SingleInstance";
-        const string ShowEventName = "DiscordUnblock.ShowWindow";
+        const string MutexName = "Burrow.SingleInstance";
+        const string ShowEventName = "Burrow.ShowWindow";
 
         static Mutex _single;
         static EventWaitHandle _showEvent;
@@ -16,19 +17,28 @@ namespace DiscordUnblock
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            string Arg(string name) { int i = Array.FindIndex(e.Args, a => a.Equals(name, StringComparison.OrdinalIgnoreCase)); return i >= 0 && i + 1 < e.Args.Length ? e.Args[i + 1] : null; }
+            bool Has(string name) => e.Args.Any(a => a.Equals(name, StringComparison.OrdinalIgnoreCase));
+
 #if RENDER
-            int ri = Array.FindIndex(e.Args, a => a == "--render");
-            if (ri >= 0)
+            if (Has("--render"))
             {
+                Loc.Init(Arg("--lang") ?? "en");
                 Dispatcher.InvokeAsync(async () =>
                 {
-                    await DiscordUnblock.MainWindow.RenderAllAsync(e.Args.Length > ri + 1 ? e.Args[ri + 1] : ".");
+                    await Burrow.MainWindow.RenderAllAsync(Arg("--render") ?? ".");
                     Shutdown();
                 });
                 return;
             }
 #endif
-            bool startInTray = e.Args.Any(a => a.Equals("--tray", StringComparison.OrdinalIgnoreCase));
+            // Restarting to switch language: wait until the old copy has gone.
+            if (int.TryParse(Arg("--after"), out int oldPid))
+            {
+                try { using var old = Process.GetProcessById(oldPid); old.WaitForExit(10000); } catch { }
+            }
+
+            bool startInTray = Has("--tray");
 
             _single = new Mutex(true, MutexName, out bool created);
             if (!created)
@@ -39,9 +49,13 @@ namespace DiscordUnblock
                 return;
             }
 
+            // Burrow used to be DiscordUnblock: bring its settings and downloads over before anything reads them.
+            Engine.MigrateLegacyData();
+            Loc.Init(Settings.Load().Language);
+
             DispatcherUnhandledException += (_, a) =>
             {
-                MessageBox.Show(a.Exception.Message, "DiscordUnblock error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(a.Exception.Message, Loc.T("app.error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 a.Handled = true;
             };
 

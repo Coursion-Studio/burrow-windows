@@ -6,32 +6,32 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace DiscordUnblock
+namespace Burrow
 {
     public sealed class Method
     {
         public int Id { get; }
-        public string Name { get; }
-        public string Description { get; }
         public string Args { get; }
-        public Method(int id, string name, string description, string args)
-        { Id = id; Name = name; Description = description; Args = args; }
+        public string Name => Loc.T($"method.{Id}.name");
+        public string Description => Loc.T($"method.{Id}.desc");
+        public Method(int id, string args) { Id = id; Args = args; }
     }
 
     public static class Methods
     {
+        // Order = most reliable first (measured: -6, -5 and -1 got 100% of Discord handshakes through,
+        // -9 about 53%, a plain SNI split 0%).
         public static readonly Method[] All =
         {
-            // Order = most reliable first (measured: -6, -5 and -1 got 100% of Discord handshakes through,
-            // -9 about 53%, a plain SNI split 0%).
-            new Method(1, "Standard",       "Split handshake + decoys the server ignores. Most reliable.", "-6"),
-            new Method(2, "Auto-TTL fake",  "Decoy packets that expire before reaching the server.",       "-5"),
-            new Method(3, "Legacy",         "Old-style tricks for older DPI systems. A bit slower.",       "-1"),
-            new Method(4, "Aggressive",     "Every decoy type at once. Helps on some ISPs, hurts on others.", "-9"),
-            new Method(5, "Wrong checksum", "Decoys with a broken checksum that only DPI reads.",           "-7"),
+            new Method(1, "-6"),   // Standard: split handshake + wrong-seq decoys
+            new Method(2, "-5"),   // Auto-TTL decoys
+            new Method(3, "-1"),   // Legacy
+            new Method(4, "-9"),   // Aggressive: every decoy type
+            new Method(5, "-7"),   // Wrong checksum decoys
         };
 
         public static Method Get(int id) => All.FirstOrDefault(m => m.Id == id) ?? All[0];
@@ -41,9 +41,12 @@ namespace DiscordUnblock
     {
         public int Method { get; set; } = 1;
         public bool DiscordOnly { get; set; } = true;
-        public bool FixDns { get; set; } = true;
+        public bool FixDns { get; set; } = true;           // pre-1.3 setting; read once into Dns
+        public string Dns { get; set; }                    // "auto", "off", or a DnsChoice id
         public bool WasOn { get; set; }
         public bool TrayHintShown { get; set; }
+        public bool FirstRunDone { get; set; }
+        public string Language { get; set; } = "auto";    // "auto" = Windows display language
 
         // Updates
         public bool AutoUpdate { get; set; } = true;
@@ -51,17 +54,23 @@ namespace DiscordUnblock
         public string SkippedVersion { get; set; }
         public string UpdateFeed { get; set; }             // blank = the public feed (override only for testing)
 
+        [System.Text.Json.Serialization.JsonIgnore] public bool IsNew { get; private set; }
+
         static string FilePath => Path.Combine(Engine.Dir, "settings.json");
 
         public static Settings Load()
         {
+            Settings s = null;
             try
             {
                 if (File.Exists(FilePath))
-                    return JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? new Settings();
+                    s = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath));
             }
             catch { }
-            return new Settings();
+            if (s == null) s = new Settings { IsNew = true };
+            if (string.IsNullOrEmpty(s.Dns)) s.Dns = s.FixDns ? "auto" : "off";
+            if (!s.IsNew && !File.Exists(FilePath)) s.IsNew = true;
+            return s;
         }
 
         public void Save()
@@ -75,12 +84,27 @@ namespace DiscordUnblock
         }
     }
 
-    /// <summary>Downloads, starts and stops GoodbyeDPI, either as a child process or as a Windows service.</summary>
+    /// <summary>Downloads (pinned + verified), starts and stops GoodbyeDPI.</summary>
     public sealed class Engine
     {
         public static readonly string Dir =
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Burrow");
+        static readonly string LegacyDir =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "DiscordUnblock");
-        public const string ServiceName = "DiscordUnblock";
+        const string LegacyServiceName = "DiscordUnblock";   // only the very first script version used a service
+
+        // ---------- GoodbyeDPI, pinned ----------
+        // A fixed release, checked by SHA-256. GitHub publishes no checksums for it, so these were recorded from the
+        // official release when it was pinned. Anything that doesn't match is refused and fetched again.
+        const string GdpiVersion = "0.2.3rc3";
+        const string GdpiUrl = "https://github.com/ValdikSS/GoodbyeDPI/releases/download/0.2.3rc3/goodbyedpi-0.2.3rc3-2.zip";
+        const string GdpiZipSha256 = "37f96b32d050dadcc930a639eba68e1ccd57ed5c04a5f77dfca908f01905a4c5";
+        static readonly Dictionary<string, string> GdpiFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["goodbyedpi.exe"]  = "8d412b094bb9c137ff25ba9a794d1122ecc84bb776debff6c249723a13cc31cd",
+            ["WinDivert.dll"]   = "6110bfa44667405179c3e15e12af1b62037e447ed59b054b19042032995e6c7e",
+            ["WinDivert64.sys"] = "e69b5ba3f0cd6cfb2983e442636e7f0b342b61b15264b0328317d4559c82cf50",
+        };
 
         static readonly string[] DiscordDomains =
         {
@@ -89,18 +113,23 @@ namespace DiscordUnblock
             "discordstatus.com", "dis.gd", "discord-attachments-uploads-prd.storage.googleapis.com",
         };
 
-        public static readonly (string Name, string Url)[] Probes =
+        public static readonly (string Key, string Url)[] Probes =
         {
-            ("Discord website & API", "https://discord.com/api/v9/gateway"),
-            ("Real-time gateway",     "https://gateway.discord.gg"),
-            ("Images & media",        "https://cdn.discordapp.com"),
+            ("probe.api",     "https://discord.com/api/v9/gateway"),
+            ("probe.gateway", "https://gateway.discord.gg"),
+            ("probe.media",   "https://cdn.discordapp.com"),
         };
 
         public event Action<string> Log;
+        /// <summary>GoodbyeDPI stopped without the app asking it to (crash, killed by antivirus…).</summary>
+        public event Action UnexpectedExit;
         void L(string s) => Log?.Invoke(s);
 
         public string Exe => Path.Combine(Dir, "goodbyedpi.exe");
-        public bool IsInstalled => File.Exists(Exe) && File.Exists(Path.Combine(Dir, "WinDivert.dll"));
+        public bool IsInstalled => GdpiFiles.Keys.All(f => File.Exists(Path.Combine(Dir, f)));
+
+        /// <summary>The DNS server actually used by the last start (resolved from "auto").</summary>
+        public DnsChoice ActiveDns { get; private set; }
 
         public bool IsRunning
         {
@@ -112,65 +141,83 @@ namespace DiscordUnblock
             }
         }
 
-        // ---------- install ----------
+        // ---------- migration from DiscordUnblock (≤ 1.2) ----------
+
+        /// <summary>Moves settings and downloads from ProgramData\DiscordUnblock. Call before Settings.Load().</summary>
+        public static void MigrateLegacyData()
+        {
+            if (Directory.Exists(Dir) || !Directory.Exists(LegacyDir)) return;
+            try { Directory.Move(LegacyDir, Dir); return; } catch { }
+            try
+            {
+                Directory.CreateDirectory(Dir);
+                string s = Path.Combine(LegacyDir, "settings.json");
+                if (File.Exists(s)) File.Copy(s, Path.Combine(Dir, "settings.json"), true);
+                Directory.Delete(LegacyDir, true);
+            }
+            catch { }
+        }
+
+        // ---------- install (pinned + verified) ----------
+
+        static string Sha256Of(string path)
+        {
+            using var f = File.OpenRead(path);
+            return Convert.ToHexString(SHA256.HashData(f)).ToLowerInvariant();
+        }
+
+        /// <summary>True only if every GoodbyeDPI file is present and matches its pinned hash.</summary>
+        public bool IsVerified()
+        {
+            try { return GdpiFiles.All(kv => File.Exists(Path.Combine(Dir, kv.Key)) && Sha256Of(Path.Combine(Dir, kv.Key)) == kv.Value); }
+            catch { return false; }
+        }
 
         public async Task EnsureInstalledAsync()
         {
-            if (IsInstalled) return;
-            L("Downloading GoodbyeDPI from github.com/ValdikSS/GoodbyeDPI…");
+            if (IsVerified()) return;
+            if (IsInstalled) L(Loc.T("log.gdpi.mismatch"));
+            L(Loc.T("log.gdpi.downloading", GdpiVersion));
+
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("DiscordUnblock/1.0");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("Burrow/" + Updater.CurrentText);
+            byte[] zipBytes = await http.GetByteArrayAsync(GdpiUrl);
+            string got = Convert.ToHexString(SHA256.HashData(zipBytes)).ToLowerInvariant();
+            if (got != GdpiZipSha256) throw new Exception(Loc.T("err.gdpi.hash"));
 
-            // Newest release including pre-releases: preset -9 only exists in 0.2.3+
-            string json = await http.GetStringAsync("https://api.github.com/repos/ValdikSS/GoodbyeDPI/releases?per_page=5");
-            string tag = null, url = null;
-            using (var doc = JsonDocument.Parse(json))
-            {
-                foreach (var rel in doc.RootElement.EnumerateArray())
-                {
-                    foreach (var a in rel.GetProperty("assets").EnumerateArray())
-                    {
-                        string n = a.GetProperty("name").GetString() ?? "";
-                        string u = a.GetProperty("browser_download_url").GetString() ?? "";
-                        if (n.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) &&
-                            u.StartsWith("https://github.com/ValdikSS/GoodbyeDPI/releases/download/", StringComparison.Ordinal))
-                        {
-                            tag = rel.GetProperty("tag_name").GetString();
-                            url = u;
-                            break;
-                        }
-                    }
-                    if (url != null) break;
-                }
-            }
-            if (url == null) throw new Exception("Couldn't find a GoodbyeDPI release on GitHub.");
-
-            byte[] bytes = await http.GetByteArrayAsync(url);
-            L($"Downloaded GoodbyeDPI {tag} ({bytes.Length / 1024} KB). Installing…");
-
-            string arch = Environment.Is64BitOperatingSystem ? "x86_64" : "x86";
+            await KillAllAsync();
             Directory.CreateDirectory(Dir);
-            using (var zip = new ZipArchive(new MemoryStream(bytes)))
+            using (var zip = new ZipArchive(new MemoryStream(zipBytes)))
             {
                 foreach (var e in zip.Entries)
                 {
                     var parts = e.FullName.Replace('\\', '/').Split('/');
-                    if (parts.Length >= 2 && parts[^2] == arch && e.Name.Length > 0)
-                        e.ExtractToFile(Path.Combine(Dir, e.Name), true);
+                    if (parts.Length < 2 || parts[^2] != "x86_64" || !GdpiFiles.ContainsKey(e.Name)) continue;
+                    string dest = Path.Combine(Dir, e.Name);
+                    try { e.ExtractToFile(dest, true); }
+                    catch (IOException)
+                    {
+                        // The driver file stays locked while WinDivert is loaded: unload it and try again.
+                        await RunAsync("sc.exe", "stop", "WinDivert");
+                        await Task.Delay(500);
+                        e.ExtractToFile(dest, true);
+                    }
                 }
             }
-            if (!IsInstalled) throw new Exception($"The GoodbyeDPI zip didn't contain the {arch} build.");
-            L($"Installed to {Dir}");
+            if (!IsVerified()) throw new Exception(Loc.T("err.gdpi.hash"));
+            L(Loc.T("log.gdpi.installed", GdpiVersion));
         }
 
         // ---------- arguments ----------
 
-        public List<string> BuildArgs(Settings s)
+        public List<string> BuildArgs(Settings s, DnsChoice dns)
         {
             var a = Methods.Get(s.Method).Args.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
-            if (s.FixDns)
-                a.AddRange(new[] { "--dns-addr", "77.88.8.8", "--dns-port", "1253",
-                                   "--dnsv6-addr", "2a02:6b8::feed:0ff", "--dnsv6-port", "1253" });
+            if (dns != null)
+            {
+                a.AddRange(new[] { "--dns-addr", dns.V4, "--dns-port", dns.Port.ToString() });
+                if (dns.V6 != null) a.AddRange(new[] { "--dnsv6-addr", dns.V6, "--dnsv6-port", dns.Port6.ToString() });
+            }
             if (s.DiscordOnly)
             {
                 string list = Path.Combine(Dir, "discord-domains.txt");
@@ -184,13 +231,17 @@ namespace DiscordUnblock
 
         static string Q(string s) => s.Contains(' ') || s.Contains('\\') ? "\"" + s + "\"" : s;
 
-        // ---------- child process mode ----------
+        // ---------- process ----------
 
         Process _proc;
 
         public async Task StartProcessAsync(Settings s)
         {
             await KillAllAsync();
+            ActiveDns = await DnsChoice.ResolveAsync(s.Dns);
+            if (ActiveDns != null) L(Loc.T("log.dns.using", ActiveDns.Name));
+            else if (s.Dns != "off") L(Loc.T("log.dns.none"));
+
             var psi = new ProcessStartInfo(Exe)
             {
                 UseShellExecute = false,
@@ -199,13 +250,19 @@ namespace DiscordUnblock
                 RedirectStandardError = true,
                 WorkingDirectory = Dir,
             };
-            foreach (var x in BuildArgs(s)) psi.ArgumentList.Add(x);
-            L("Starting: goodbyedpi " + string.Join(" ", psi.ArgumentList.Select(Q)));
+            foreach (var x in BuildArgs(s, ActiveDns)) psi.ArgumentList.Add(x);
+            L(Loc.T("log.starting") + " goodbyedpi " + string.Join(" ", psi.ArgumentList.Select(Q)));
 
             var p = new Process { StartInfo = psi, EnableRaisingEvents = true };
             p.OutputDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) L("  " + e.Data.Trim()); };
             p.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) L("  " + e.Data.Trim()); };
-            p.Exited += (_, __) => { if (ReferenceEquals(_proc, p)) { _proc = null; L($"GoodbyeDPI exited (code {SafeExitCode(p)})."); } };
+            p.Exited += (_, __) =>
+            {
+                if (!ReferenceEquals(_proc, p)) return;   // we stopped it on purpose
+                _proc = null;
+                L(Loc.T("log.gdpi.exited", SafeExitCode(p)));
+                UnexpectedExit?.Invoke();
+            };
             p.Start();
             p.BeginOutputReadLine();
             p.BeginErrorReadLine();
@@ -225,49 +282,21 @@ namespace DiscordUnblock
             }
         }
 
-        // ---------- service mode ----------
+        // ---------- legacy service (first script version only) ----------
 
-        public bool ServiceExists() => RunSync("sc.exe", "query", ServiceName) != 1060;
+        public bool LegacyServiceExists() => RunSync("sc.exe", "query", LegacyServiceName) != 1060;
 
-        public async Task InstallServiceAsync(Settings s, bool start)
+        public async Task RemoveLegacyServiceAsync()
         {
-            await RemoveServiceAsync(quiet: true);
-            await KillAllAsync();
-            string bin = Q(Exe) + " " + string.Join(" ", BuildArgs(s).Select(Q));
-            var r = await RunAsync("sc.exe", "create", ServiceName, "binPath=", bin, "start=", "auto",
-                                   "DisplayName=", "Discord Unblock (GoodbyeDPI)");
-            if (r.Code != 0) throw new Exception("Couldn't create the service: " + r.Output.Trim());
-            await RunAsync("sc.exe", "description", ServiceName, "Bypasses DPI blocking for Discord. Managed by the DiscordUnblock app.");
-            await RunAsync("sc.exe", "failure", ServiceName, "reset=", "0", "actions=", "restart/3000");
-            L("Windows service installed (starts automatically at boot).");
-            if (start) await StartServiceAsync();
-        }
-
-        public async Task StartServiceAsync()
-        {
-            var r = await RunAsync("sc.exe", "start", ServiceName);
-            if (r.Code != 0 && r.Code != 1056 /* already running */)
-                throw new Exception("Couldn't start the service: " + r.Output.Trim());
-            L("Service started.");
-        }
-
-        public async Task StopServiceAsync()
-        {
-            await RunAsync("sc.exe", "stop", ServiceName);
+            if (!LegacyServiceExists()) return;
+            await RunAsync("sc.exe", "stop", LegacyServiceName);
             for (int i = 0; i < 25 && IsRunning; i++) await Task.Delay(200);
-        }
-
-        public async Task RemoveServiceAsync(bool quiet = false)
-        {
-            if (!ServiceExists()) return;
-            await StopServiceAsync();
-            await RunAsync("sc.exe", "delete", ServiceName);
-            if (!quiet) L("Windows service removed.");
+            await RunAsync("sc.exe", "delete", LegacyServiceName);
         }
 
         public async Task StopAllAsync()
         {
-            if (ServiceExists()) await StopServiceAsync();
+            if (LegacyServiceExists()) await RunAsync("sc.exe", "stop", LegacyServiceName);
             await KillAllAsync();
         }
 
@@ -336,6 +365,27 @@ namespace DiscordUnblock
             catch { return false; }
         }
 
+        /// <summary>
+        /// Is the internet up at all? (Plain TCP to two well-known non-Discord servers.) Used so self-healing
+        /// doesn't mistake "Wi-Fi is down" for "Discord is blocked".
+        /// </summary>
+        public static async Task<bool> InternetUpAsync()
+        {
+            async Task<bool> Tcp(string ip)
+            {
+                try
+                {
+                    using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(4));
+                    using var tcp = new System.Net.Sockets.TcpClient();
+                    await tcp.ConnectAsync(System.Net.IPAddress.Parse(ip), 443, cts.Token);
+                    return true;
+                }
+                catch { return false; }
+            }
+            var r = await Task.WhenAll(Tcp("1.1.1.1"), Tcp("8.8.8.8"));
+            return r.Any(x => x);
+        }
+
         /// <summary>Any HTTP response at all means the server is reachable (not blocked).</summary>
         public static async Task<(bool Ok, long Ms, string Detail)> ProbeAsync(string url)
         {
@@ -349,11 +399,11 @@ namespace DiscordUnblock
                     AllowAutoRedirect = false,
                 };
                 using var c = new HttpClient(h) { Timeout = TimeSpan.FromSeconds(8) };
-                c.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 DiscordUnblock/1.0");
+                c.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 Burrow/" + Updater.CurrentText);
                 using var r = await c.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
                 return (true, sw.ElapsedMilliseconds, $"HTTP {(int)r.StatusCode}");
             }
-            catch (TaskCanceledException) { return (false, sw.ElapsedMilliseconds, "timed out"); }
+            catch (TaskCanceledException) { return (false, sw.ElapsedMilliseconds, Loc.T("probe.timeout")); }
             catch (Exception ex)
             {
                 var inner = ex;

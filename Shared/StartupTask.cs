@@ -8,11 +8,11 @@ using System.Security;
 using System.Security.Principal;
 using System.Text;
 
-namespace DiscordUnblock
+namespace Burrow
 {
     public static class StartupTask
     {
-        public const string Name = "DiscordUnblock";
+        public const string Name = "Burrow";
 
         public static bool Exists()
         {
@@ -26,7 +26,7 @@ namespace DiscordUnblock
             string xml =
 "<?xml version=\"1.0\" encoding=\"UTF-16\"?>\r\n" +
 "<Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">\r\n" +
-"  <RegistrationInfo><Description>Opens DiscordUnblock in the system tray when you sign in.</Description></RegistrationInfo>\r\n" +
+"  <RegistrationInfo><Description>Opens Burrow in the system tray when you sign in.</Description></RegistrationInfo>\r\n" +
 "  <Triggers><LogonTrigger><Enabled>true</Enabled><UserId>" + user + "</UserId><Delay>PT5S</Delay></LogonTrigger></Triggers>\r\n" +
 "  <Principals><Principal id=\"Author\"><UserId>" + user + "</UserId><LogonType>InteractiveToken</LogonType><RunLevel>HighestAvailable</RunLevel></Principal></Principals>\r\n" +
 "  <Settings>\r\n" +
@@ -38,7 +38,7 @@ namespace DiscordUnblock
 "  </Settings>\r\n" +
 "  <Actions Context=\"Author\"><Exec><Command>" + exe + "</Command><Arguments>--tray</Arguments></Exec></Actions>\r\n" +
 "</Task>\r\n";
-            string tmp = Path.Combine(Path.GetTempPath(), "DiscordUnblock-task-" + Guid.NewGuid().ToString("N") + ".xml");
+            string tmp = Path.Combine(Path.GetTempPath(), "Burrow-task-" + Guid.NewGuid().ToString("N") + ".xml");
             File.WriteAllText(tmp, xml, Encoding.Unicode);
             try { return Run("/Create /TN \"" + Name + "\" /XML \"" + tmp + "\" /F") == 0; }
             finally { try { File.Delete(tmp); } catch { } }
@@ -47,6 +47,19 @@ namespace DiscordUnblock
         public static void Delete()
         {
             Run("/Delete /TN \"" + Name + "\" /F");
+        }
+
+        /// <summary>The task name used before the app was renamed to Burrow (≤ 1.2.0).</summary>
+        public const string LegacyName = "DiscordUnblock";
+
+        public static bool LegacyExists()
+        {
+            return Run("/Query /TN \"" + LegacyName + "\"") == 0;
+        }
+
+        public static void DeleteLegacy()
+        {
+            Run("/Delete /TN \"" + LegacyName + "\" /F");
         }
 
         static int Run(string args)
